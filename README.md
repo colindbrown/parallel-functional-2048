@@ -1,12 +1,9 @@
 # Parallel Functional 2048
 *Colin Brown and Jonathan Rich*
 2048-playing agent implemented using adversarial search with alpha-beta pruning
-Heuristic hyperparameter tuning using genetic search
 
 ## Usage
 ./pf2048 play (filename)  - Play and display a game of 2048, using saved hyperparameters if filename provided
-
-./pf2048 train (filename) - Train and save hyperparameters, output file named filename if specified
 
 ## Todos
 ### Main.hs
@@ -16,7 +13,6 @@ Heuristic hyperparameter tuning using genetic search
 - [ ] main :: IO () # either calls playRound or trainParams
 
 ### Auto2048.hs
-Minimax function eventually done in parallel
 - [ ] Board type [Int]
 - [ ] Params type [Int]
 - [ ] Heuristic type (Board -> Int)
@@ -31,12 +27,10 @@ Minimax function eventually done in parallel
 - [ ] makeMove :: Board -> Move -> Board
 - [ ] minimax :: GameState -> Heuristic -> Int -> Int -> Int ->  (Int, Move) # 3 ints are remaining depth, alpha, beta
 
-### GeneticSearch.hs
-imports Params, makeHeuristic, and playRound from Auto2048
-- [ ] trainParams :: Handle -> IO ()
-- [ ] evalParams :: Params -> Int # (playRound False) . makeHeuristic
-- [ ] saveBest :: Handle -> Params -> IO () # write to temp, delete old, change name
+### Parallel implementation
+- [ ] full parallel
+- [ ] mixed parallel w/ some branch in full, then rest in parallel
+- [ ] truncated search w/ heuristic values to speed up
 
-Also needs some sort of current store of param sets, method for generating new, method of integrating evaluated params (printing out log messages), detecting convergence and ending.
-
-Should be able to be interrupted and always have valid saved params file.
+### Speedups
+- [ ] bitvectors
