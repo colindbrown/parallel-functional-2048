@@ -1,22 +1,30 @@
 module Main where
 
-import Auto2048 as Game
-import GeneticSearch as Search
+import Base2048
+import GameAgents
+import System.Exit(die)
+import System.Environment(getArgs, getProgName)
 
-{-
-    usage should be
-    ./pf2048 -> usage message
-    ./pf2048 play (filename) -> plays game with printing board, optional filename of params to use
-    ./pf2048 train (filename) -> trains params using genetic search, filename of where to store learned params
--}
 main :: IO ()
-main = play2048
+main = do args <- getArgs
+          case args of
+            [playerType] -> playGame player
+              where player = case playerType of
+                        "int" -> interactivePlayer
+                        "simple" -> simplePlayer
+                        "ab" -> alphaBetaPlayer
+                        "par" -> fullParallelPlayer
+                        "mixed" -> mixedParallelPlayer
+                        p -> error $ p ++ " is not a valid player type"
+            _ -> do pn <- getProgName
+                    die $ "Usage: " ++ pn ++ " <player type>"
 
-play2048 :: IO ()
-play2048 = do
-    score <- Game.playRound Game.defaultParameters
-    putStrLn $ show score
-
-evolveParameters :: IO ()
-evolveParameters = do
-    params <- Search.
+playGame :: (GameState -> IO GameState) -> IO ()
+playGame player = newGame >>= playFrom
+  where playFrom g = do
+            print g
+            case g of
+                (PlayerTurn _) -> player g >>= \g' -> playFrom g'
+                (ComputerTurn _) -> playComputer g >>= \g' -> playFrom g'
+                (GameWon _) -> putStrLn "Congratulations!"
+                (GameLost _) -> putStrLn "Try again soon!"
