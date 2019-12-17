@@ -2,66 +2,106 @@ module Base2048 (
     GameState(GameWon, GameLost, ComputerTurn, PlayerTurn),
     Move,
     newGame,
-    getMoves,
+    scoreGame,
+    nextStates,
+    getPlayerMoves,
     parsePlayerMove,
-    playMove,
     playComputer,
-    scoreBoard
+    getComputerState
 ) where
 
 import Data.List(intercalate, transpose, partition)
 import Data.List.Split(divvy)
 import System.Random(getStdRandom, random)
+import Control.Monad(guard)
 
 
 size = 4
-flatsize = size * size
-
 goal = 2048
 
 computerChoices = [2, 4]
 computerProbs = [0.9, 0.1]
 
 
-data Board = Board { boardArray :: [[Int]] }
-            deriving Eq
+type Board = [[Int]]
 data GameState = PlayerTurn Board | ComputerTurn Board
                 | GameWon Board | GameLost Board
 data Move = LeftMove | RightMove | UpMove | DownMove
             deriving Eq
 
 instance Show GameState where
-    show (PlayerTurn b) = "Player to Move.\n" ++ show b
-    show (ComputerTurn b) = "Computer to Move.\n" ++ show b
-    show (GameWon b) = "Player Won the Game!\n" ++ show b
-    show (GameLost b) = "Player Lost the Game!\n" ++ show b
+    show (PlayerTurn b) = "Player to Move.\n" ++ printBoard b
+    show (ComputerTurn b) = "Computer to Move.\n" ++ printBoard b
+    show (GameWon b) = "Player Won the Game!\n" ++ printBoard b
+    show (GameLost b) = "Player Lost the Game!\n" ++ printBoard b
 
-instance Show Board where
-    show (Board b) = "\n" ++ (intercalate "\n" $ map showBoardRow b) ++ "\n"
-      where showBoardRow r = intercalate "\t" $ map show r
-
-instance Show Move where
-    show LeftMove = "Left"
-    show RightMove = "Right"
-    show UpMove = "Up"
-    show DownMove = "Down"
+printBoard :: Board -> String
+printBoard b = "\n" ++ (intercalate "\n" $ map showBoardRow b) ++ "\n"
+    where showBoardRow r = intercalate "\t" $ map show r
 
 
 newGame :: IO GameState
-newGame = playComputer blankgame
-  where blankgame = ComputerTurn $ makeBoard $ replicate flatsize 0
-        makeBoard flatlist = Board $ divvy size size flatlist
+newGame = playComputer $ ComputerTurn [replicate size 0 | _ <- replicate size 0]
+
+{-
+    Heuristic for how good a state is for the player
+    Rewards empty squares, higher value tiles, and evenly increasing rows/cols
+    Penalizes large gaps in value between neighboring tiles
+-}
+scoreGame :: GameState -> Double
+scoreGame (GameLost _) = -1 * (read "Infinity")::Double
+scoreGame (GameWon _) = (read "Infinity")::Double
+scoreGame (PlayerTurn board) = scoreBoard board
+scoreGame (ComputerTurn board) = scoreBoard board
+
+scoreBoard :: Board -> Double
+scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + cornerBias - 0.65*smoothPen
+  where numEmpty = sum $ map (length . filter (0 ==)) b
+        sumPow = fromIntegral $ sum $ map (sum . map (flip (^) 2)) b
+        smoothPen = fromIntegral $
+            sumOverDirs (sum . map (sum . (map abs) . offsetDiffs)) b
+        monoScore = fromIntegral $
+            sumOverDirs (maximum . (map sum) . transpose . (map monoScores)) b
+        monoScores x = map (abs . sum) $ tupToL $ partition (0<) $ offsetDiffs x
+        offsetDiffs l = zipWith (-) l $ tail l
+        sumOverDirs f b' = sum $ map f [b', transpose b']
+        tupToL (x,y) = [x,y]
+        cornerBias = fromIntegral $ weightSum $ concat $ flipAltRows
+        weightSum l = sum $ zipWith (*) (map (flip (^) 2) [0..]) l
+        flipAltRows = zipWith ($) (cycle [id, reverse]) b
+
+-- Wrapper to abstract turns and moves away from agents
+nextStates :: GameState -> [GameState]
+nextStates (PlayerTurn b) = map snd $ getPlayerMoves b
+nextStates (ComputerTurn b) = getComputerMoves b
+nextStates _ = []
 
 
-getMoves :: GameState -> [(Move, Board)]
-getMoves (PlayerTurn board) = validPlayerMoves board
-getMoves _ = error "Cannot get moves because it's not the player's turn"
-
-validPlayerMoves :: Board -> [(Move, Board)]
-validPlayerMoves board = filter ((/= board) . snd) $ zip moves boards
+getPlayerMoves :: Board -> [(Move, GameState)]
+getPlayerMoves board = do
+    move <- moves
+    let successor = doPlayerMove board move
+        state = getState successor
+    guard $ successor /= board
+    return (move, state)
   where moves = [LeftMove, RightMove, UpMove, DownMove]
-        boards = map (doMove board) moves
+        getState b | winState b = GameWon b
+                   | otherwise  = ComputerTurn b
+        winState b = any (>= goal) $ concat b
 
+-- fourfold symmetry of board, so implemented actual transformation only once
+doPlayerMove :: Board -> Move -> Board
+doPlayerMove b LeftMove = board'
+  where board' = map (take size . (++ repeat 0) . merge . filter (/= 0)) b
+        merge (x1:x2:xs)
+            | x1 == x2 = (x1 * 2) : merge xs
+            | otherwise = x1 : merge (x2 : xs)
+        merge l = l
+doPlayerMove b RightMove = map reverse $ doPlayerMove (map reverse b) LeftMove
+doPlayerMove b UpMove = transpose $ doPlayerMove (transpose b) LeftMove
+doPlayerMove b DownMove = transpose $ doPlayerMove (transpose b) RightMove
+
+-- Enables interactive player
 parsePlayerMove :: String -> Maybe Move
 parsePlayerMove "L" = Just LeftMove
 parsePlayerMove "R" = Just RightMove
@@ -70,50 +110,35 @@ parsePlayerMove "D" = Just DownMove
 parsePlayerMove _ = Nothing
 
 
-playMove :: GameState -> Move -> IO GameState
-playMove (PlayerTurn board) move
-    | goalreached  = print move >>= \_ -> return $ GameWon board'
-    | otherwise    = print move >>= \_ -> return $ ComputerTurn board'
-  where board' = doMove board move
-        goalreached = any (>= goal) $ concat $ boardArray board'
-playMove_ _ = error "Cannot play move because it's not the player's turn"
+getComputerMoves :: Board -> [GameState]
+getComputerMoves board = map getComputerState newBoards
+  where newBoards = map snd $ allComputerMoveProbs board
 
-
--- Todo: cleanup and speed up with bitvectors
-doMove :: Board -> Move -> Board
-doMove (Board board) LeftMove = Board board'
-      where board' = map (take size . (++ repeat 0) . merge . filter (/= 0)) board
-            merge (x1:x2:xs)
-              | x1 == x2 = (x1 * 2) : merge xs
-              | otherwise = x1 : merge (x2 : xs)
-            merge l = l
--- todo: in the following make more pretty by acting on the Board "box" directly somehow (i.e get rid of boardArray)
-
-doMove (Board board) RightMove = Board board'
-      where board' = map reverse $ boardArray $ doMove (Board $ map reverse board) LeftMove
-doMove (Board board) UpMove = Board board'
-      where board' = transpose $ boardArray $ doMove (Board $ transpose board) LeftMove
-doMove (Board board) DownMove = Board board'
-      where board' = transpose $ boardArray $ doMove (Board $ transpose board) RightMove
-
--- Todo: clean up to use actual moves
 playComputer :: GameState -> IO GameState
-playComputer (ComputerTurn board)
-    = do board' <- doComputerMove board
-         if null $ validPlayerMoves board'
-         then return $ GameLost board'
-         else return $ PlayerTurn board'
-playComputer _ = error "Cannot play computer move because it's not the computer's turn"
+playComputer (ComputerTurn b) = doComputerMove b >>=
+    \b' -> return $ getComputerState b'
+playComputer _ = error "It's not the Computer's turn."
+
+getComputerState :: Board -> GameState
+getComputerState b | loseState b = GameLost b
+                   | otherwise  = PlayerTurn b
+  where loseState b' = gridMin b' > 0
+            && minimum (map diffMin [b', transpose b']) > 0
+        diffMin b' = minimum $ map (minimum . (map abs) . offsetDiffs) b'
+        offsetDiffs l = zipWith (-) l $ tail l
+        gridMin g = minimum (map minimum g)
 
 doComputerMove :: Board -> IO Board
 doComputerMove board = getStdRandom random >>=
-    \r -> return $ snd $ head $ filter ((> r) . fst) $ culmProbs
-  where culmProbs = allComputerMoveCulmProbs board
+    \r -> return $ snd $ head $ filter ((> r) . fst) $ cumulativeProbs
+  where
+    cumulativeProbs = scanl1 addCumulative $ allComputerMoveProbs board
+    addCumulative = \(p, b) (p', b') -> (p + p', b')
 
 allComputerMoveProbs :: Board -> [(Double, Board)]
-allComputerMoveProbs (Board board) = zip probs $ map Board boards'
+allComputerMoveProbs board = zip probs boards'
   where flatboard = concat board
-        flatboards = replicate (flatsize * length(computerChoices)) flatboard
+        flatboards = replicate (size^2 * length(computerChoices)) flatboard
         flatboards' = zipWith combineDelta flatboards deltas
         uniqueflatboards' = filter (/= flatboard) flatboards'
         boards' = map (divvy size size) uniqueflatboards'
@@ -129,26 +154,3 @@ allComputerMoveProbs (Board board) = zip probs $ map Board boards'
         combineDelta flatboard delta = zipWith combine flatboard delta
         combine 0 new = new
         combine orig _ = orig
-
-allComputerMoveCulmProbs :: Board -> [(Double, Board)]
-allComputerMoveCulmProbs board
-    = scanl1 (\(p, b) (p', b') -> (p + p', b')) $ allComputerMoveProbs board
-
-allComputerMoves :: Board -> [Board]
-allComputerMoves board = map snd $ allComputerMoveProbs board
-
-
-scoreBoard :: Board -> Int
-scoreBoard (Board b) = 2^numEmpty + sumPow + monoScore - smoothPen
-  where numEmpty = sum $ map (length . filter (0 ==)) b
-        sumPow = sum $ map (sum . map (flip (^) 2)) b
-        smoothPen = sumOverDirs (sum . map (sum . (map abs) . offsetDiffs)) b
-        monoScore :: Int
-        monoScore = sumOverDirs (maximum . (map sum) . transpose . (map monoScores)) b
-        monoScores :: [Int] -> [Int]
-        monoScores x = map (abs . sum) $ lToT $ partition (0<) $ offsetDiffs x
-        offsetDiffs :: [Int] -> [Int]
-        offsetDiffs l = zipWith (-) l $ tail l
-        sumOverDirs :: ([[Int]] -> Int) -> [[Int]] -> Int
-        sumOverDirs f b' = sum $ map f [b', transpose b']
-        lToT (x,y) = [x,y]
