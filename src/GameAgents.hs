@@ -50,6 +50,28 @@ fullParallelPlayer maxdepth game = return $ snd $ minimax maxdepth game
                     | otherwise = mmValues d g
     scores d g = parMap rpar (minimax (d-1)) (nextStates g)
 
+-- uses a mixed "Young Brothers Can Wait Strategy"
+-- fully evaluates first child for alpha/beta then uses those in paralle for others
+ybcwPlayer :: Int -> GameState -> IO GameState
+ybcwPlayer maxdepth game = return $ snd $ minimax (-1*inf) inf maxdepth game 
+    where
+    minimax _ _ 0 g= (scoreGame g, g)
+    minimax a b d g@(PlayerTurn _) = maxYBCW a b d $ nextStates g
+    minimax a b d g@(ComputerTurn _) = minYBCW a b d $ nextStates g
+    minimax _ _ _ g = (scoreGame g, g)
+
+    maxYBCW a' b' d (g:gs) =
+        let (s, _) = minimax a' b' (d-1) g; newA = max a' s
+        in case newA >= b' of
+            False -> maximumBy (comparing fst) $ (s, g) : parMMValues newA b' d gs
+            True -> (s, g)
+    minYBCW a' b' d (g:gs) =
+        let (s, _) = minimax a' b' (d-1) g; newB = min b' s
+        in case a' >= newB of
+            False -> minimumBy (comparing fst) $ (s, g) : parMMValues a' newB d gs
+            True -> (s, g)
+    parMMValues a b d gs = zipWith (\(s,_) x -> (s, x)) (scores a b d gs) gs
+    scores a b d gs = parMap rpar (minimax a b (d-1)) gs
 
 -- interactivePlayer takes a dummy Int parameter that it ignores
 -- This is to match the function signature of the other agents (which take maxdepth)

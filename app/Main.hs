@@ -14,6 +14,7 @@ main = do args <- getArgs
                         "simple" -> simplePlayer
                         "ab" -> alphaBetaPlayer
                         "par" -> fullParallelPlayer
+                        "mixed" -> ybcwPlayer
                         p -> error $ p ++ " is not a valid player type"
             _ -> do pn <- getProgName
                     die $ "Usage: " ++ pn ++ " <max depth> <player type>"
