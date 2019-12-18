@@ -5,11 +5,10 @@ import Data.List(lookup, maximumBy, minimumBy)
 import Data.Ord(comparing)
 import Control.Parallel.Strategies(runEval, parMap, rpar)
 
-maxdepth = 5
 inf = read "Infinity" :: Double
 
-simplePlayer :: GameState -> IO GameState
-simplePlayer game = return $ snd $ minimax maxdepth game
+simplePlayer :: Int -> GameState -> IO GameState
+simplePlayer maxdepth game = return $ snd $ minimax maxdepth game
   where
     minimax 0 g = (scoreGame g, g)
     minimax d g@(PlayerTurn _) = maximumBy (comparing fst) $ mmValues d g
@@ -17,8 +16,8 @@ simplePlayer game = return $ snd $ minimax maxdepth game
     minimax _ g = (scoreGame g, g)
     mmValues d g = [(fst $ minimax (d-1) x, x) | x <- nextStates g]
 
-alphaBetaPlayer :: GameState -> IO GameState
-alphaBetaPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
+alphaBetaPlayer :: Int -> GameState -> IO GameState
+alphaBetaPlayer maxdepth game = return $ snd $ minimax maxdepth game (-1*inf) inf
   where
     minimax 0 g _ _ = (scoreGame g, g)
     minimax d g@(PlayerTurn _) a b = maxFold a b d $ nextStates g
@@ -39,8 +38,8 @@ alphaBetaPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
             False -> minimumBy (comparing fst) [(s, g), minFold a' newB d gs]
             True -> (s, g)
 
-fullParallelPlayer :: GameState -> IO GameState
-fullParallelPlayer game = return $ snd $ minimax maxdepth game
+fullParallelPlayer :: Int -> GameState -> IO GameState
+fullParallelPlayer maxdepth game = return $ snd $ minimax maxdepth game
   where
     minimax 0 g = (scoreGame g, g)
     minimax d g@(PlayerTurn _) = maximumBy (comparing fst) $ mmValues d g
@@ -51,31 +50,14 @@ fullParallelPlayer game = return $ snd $ minimax maxdepth game
                     | otherwise = mmValues d g
     scores d g = parMap rpar (minimax (d-1)) (nextStates g)
 
-YBCWPlayer :: GameState -> IO GameState
-YCBWPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
-    where
-    minimax 0 g _ _ = (scoreGame g, g)
-    minimax d g@(PlayerTurn _) a b = maxFold a b d $ nextStates g
-    minimax d g@(ComputerTurn _) a b = minFold a b d $ nextStates g
-    minimax _ g _ _ = (scoreGame g, g)
 
-    maxFold a' b' d [g] = (fst $ minimax (d-1) g a' b', g)
-    maxFold a' b' d (g:gs) =
-        let (s, _) = minimax (d-1) g a' b'; newA = max a' s
-        in case newA >= b' of
-            False -> maximumBy (comparing fst) [(s, g), maxFold newA b' d gs]
-            True -> (s, g)
+-- interactivePlayer takes a dummy Int parameter that it ignores
+-- This is to match the function signature of the other agents (which take maxdepth)
+interactivePlayer :: Int -> GameState -> IO GameState
+interactivePlayer _ = interactivePlayer'
 
-    minFold a' b' d [g] = (fst $ minimax (d-1) g a' b', g)
-    minFold a' b' d (g:gs) =
-        let (s, _) = minimax (d-1) g a' b'; newB = min b' s
-        in case a' >= newB of
-            False -> minimumBy (comparing fst) [(s, g), minFold a' newB d gs]
-            True -> (s, g)
-
-
-interactivePlayer :: GameState -> IO GameState
-interactivePlayer g@(PlayerTurn b) = do
+interactivePlayer' :: GameState -> IO GameState
+interactivePlayer' g@(PlayerTurn b) = do
     putStrLn "Choose Move (L, R, U, D)"
     m <- parsePlayerMove <$> getLine
     case m of
@@ -85,5 +67,5 @@ interactivePlayer g@(PlayerTurn b) = do
                 Nothing -> getAnotherMove
         Nothing -> getAnotherMove
   where getAnotherMove = do putStrLn "Move invalid! Choose another move."
-                            interactivePlayer g
-interactivePlayer _ = error "It's not the Player's turn"
+                            interactivePlayer' g
+interactivePlayer' _ = error "It's not the Player's turn"
