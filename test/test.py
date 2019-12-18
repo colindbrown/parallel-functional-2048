@@ -10,7 +10,7 @@ num_iterations = int(sys.argv[1])
 max_depth = int(sys.argv[2])
 show_games = sys.argv[3] == "true"
 
-algorithms = ["simple", "ab"]
+algorithms = ["simple", "ab", "par +RTS -N -s"]
 
 def time_successful_call(algorithm, max_depth, suppress_output):
 
