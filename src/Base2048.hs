@@ -47,6 +47,7 @@ newGame = playComputer $ ComputerTurn [replicate size 0 | _ <- replicate size 0]
     Heuristic for how good a state is for the player
     Rewards empty squares, higher value tiles, and evenly increasing rows/cols
     Penalizes large gaps in value between neighboring tiles
+    Adds weighted rewards for values along a snaking path for easy combination
 -}
 scoreGame :: GameState -> Double
 scoreGame (GameLost _) = -1 * (read "Infinity")::Double
@@ -57,7 +58,7 @@ scoreGame (ComputerTurn board) = scoreBoard board
 scoreBoard :: Board -> Double
 scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + snakeBias - 0.65*smoothPen
   where numEmpty = sum $ map (length . filter (0 ==)) b
-        sumPow = fromIntegral $ sum $ map (sum . map (flip (^) 2)) b
+        sumPow = sum $ map (sum . map (flip (**) (1.7::Double) . fromIntegral)) b
         smoothPen = fromIntegral $
             sumOverDirs (sum . map (sum . (map abs) . offsetDiffs)) b
         monoScore = fromIntegral $
@@ -67,7 +68,7 @@ scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + snakeBias - 0.65*smoothPen
         sumOverDirs f b' = sum $ map f [b', transpose b']
         tupToL (x,y) = [x,y]
         snakeBias = fromIntegral $ weightSum $ concat $ flipAltRows
-        weightSum l = sum $ zipWith (*) (map (flip (^) 2) [0..]) l
+        weightSum l = sum $ zipWith (*) (map (flip (^) 3) [0..]) l
         flipAltRows = zipWith ($) (cycle [id, reverse]) b
 
 -- Wrapper to abstract turns and moves away from agents
