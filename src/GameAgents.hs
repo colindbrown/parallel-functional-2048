@@ -3,6 +3,7 @@ module GameAgents where
 import Base2048
 import Data.List(lookup, maximumBy, minimumBy)
 import Data.Ord(comparing)
+import Control.Parallel.Strategies(runEval, parMap, rpar)
 
 maxdepth = 5
 inf = read "Infinity" :: Double
@@ -38,6 +39,39 @@ alphaBetaPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
             False -> minimumBy (comparing fst) [(s, g), minFold a' newB d gs]
             True -> (s, g)
 
+fullParallelPlayer :: GameState -> IO GameState
+fullParallelPlayer game = return $ snd $ minimax maxdepth game
+  where
+    minimax 0 g = (scoreGame g, g)
+    minimax d g@(PlayerTurn _) = maximumBy (comparing fst) $ mmValues d g
+    minimax d g@(ComputerTurn _) = minimumBy (comparing fst) $ parMMValues d g
+    minimax _ g = (scoreGame g, g)
+    mmValues d g = [(fst $ minimax (d-1) x, x) | x <- nextStates g]
+    parMMValues d g | d > 3 = zipWith (\(s,_) x -> (s, x)) (scores d g) $ nextStates g
+                    | otherwise = mmValues d g
+    scores d g = parMap rpar (minimax (d-1)) (nextStates g)
+
+YBCWPlayer :: GameState -> IO GameState
+YCBWPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
+    where
+    minimax 0 g _ _ = (scoreGame g, g)
+    minimax d g@(PlayerTurn _) a b = maxFold a b d $ nextStates g
+    minimax d g@(ComputerTurn _) a b = minFold a b d $ nextStates g
+    minimax _ g _ _ = (scoreGame g, g)
+
+    maxFold a' b' d [g] = (fst $ minimax (d-1) g a' b', g)
+    maxFold a' b' d (g:gs) =
+        let (s, _) = minimax (d-1) g a' b'; newA = max a' s
+        in case newA >= b' of
+            False -> maximumBy (comparing fst) [(s, g), maxFold newA b' d gs]
+            True -> (s, g)
+
+    minFold a' b' d [g] = (fst $ minimax (d-1) g a' b', g)
+    minFold a' b' d (g:gs) =
+        let (s, _) = minimax (d-1) g a' b'; newB = min b' s
+        in case a' >= newB of
+            False -> minimumBy (comparing fst) [(s, g), minFold a' newB d gs]
+            True -> (s, g)
 
 
 interactivePlayer :: GameState -> IO GameState

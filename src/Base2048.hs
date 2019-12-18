@@ -55,7 +55,7 @@ scoreGame (PlayerTurn board) = scoreBoard board
 scoreGame (ComputerTurn board) = scoreBoard board
 
 scoreBoard :: Board -> Double
-scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + cornerBias - 0.65*smoothPen
+scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + snakeBias - 0.65*smoothPen
   where numEmpty = sum $ map (length . filter (0 ==)) b
         sumPow = fromIntegral $ sum $ map (sum . map (flip (^) 2)) b
         smoothPen = fromIntegral $
@@ -66,7 +66,7 @@ scoreBoard b = 2^numEmpty + 0.5*sumPow + monoScore + cornerBias - 0.65*smoothPen
         offsetDiffs l = zipWith (-) l $ tail l
         sumOverDirs f b' = sum $ map f [b', transpose b']
         tupToL (x,y) = [x,y]
-        cornerBias = fromIntegral $ weightSum $ concat $ flipAltRows
+        snakeBias = fromIntegral $ weightSum $ concat $ flipAltRows
         weightSum l = sum $ zipWith (*) (map (flip (^) 2) [0..]) l
         flipAltRows = zipWith ($) (cycle [id, reverse]) b
 
