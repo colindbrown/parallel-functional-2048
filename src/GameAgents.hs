@@ -4,11 +4,10 @@ import Base2048
 import Data.List(lookup, maximumBy, minimumBy)
 import Data.Ord(comparing)
 
-maxdepth = 5
 inf = read "Infinity" :: Double
 
-simplePlayer :: GameState -> IO GameState
-simplePlayer game = return $ snd $ minimax maxdepth game
+simplePlayer :: Int -> GameState -> IO GameState
+simplePlayer maxdepth game = return $ snd $ minimax maxdepth game
   where
     minimax 0 g = (scoreGame g, g)
     minimax d g@(PlayerTurn _) = maximumBy (comparing fst) $ mmValues d g
@@ -16,8 +15,8 @@ simplePlayer game = return $ snd $ minimax maxdepth game
     minimax _ g = (scoreGame g, g)
     mmValues d g = [(fst $ minimax (d-1) x, x) | x <- nextStates g]
 
-alphaBetaPlayer :: GameState -> IO GameState
-alphaBetaPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
+alphaBetaPlayer :: Int -> GameState -> IO GameState
+alphaBetaPlayer maxdepth game = return $ snd $ minimax maxdepth game (-1*inf) inf
   where
     minimax 0 g _ _ = (scoreGame g, g)
     minimax d g@(PlayerTurn _) a b = maxFold a b d $ nextStates g
@@ -39,9 +38,13 @@ alphaBetaPlayer game = return $ snd $ minimax maxdepth game (-1*inf) inf
             True -> (s, g)
 
 
+-- interactivePlayer takes a dummy Int parameter that it ignores
+-- This is to match the function signature of the other agents (which take maxdepth)
+interactivePlayer :: Int -> GameState -> IO GameState
+interactivePlayer _ = interactivePlayer'
 
-interactivePlayer :: GameState -> IO GameState
-interactivePlayer g@(PlayerTurn b) = do
+interactivePlayer' :: GameState -> IO GameState
+interactivePlayer' g@(PlayerTurn b) = do
     putStrLn "Choose Move (L, R, U, D)"
     m <- parsePlayerMove <$> getLine
     case m of
@@ -51,5 +54,5 @@ interactivePlayer g@(PlayerTurn b) = do
                 Nothing -> getAnotherMove
         Nothing -> getAnotherMove
   where getAnotherMove = do putStrLn "Move invalid! Choose another move."
-                            interactivePlayer g
-interactivePlayer _ = error "It's not the Player's turn"
+                            interactivePlayer' g
+interactivePlayer' _ = error "It's not the Player's turn"
