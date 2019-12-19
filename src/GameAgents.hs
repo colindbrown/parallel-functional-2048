@@ -12,7 +12,7 @@ import Data.Ord(comparing)
 import Control.Parallel.Strategies(runEval, parMap, rpar)
 
 inf = read "Infinity" :: Double
-depthLimit = 2 :: Int
+depthLimit = 3 :: Int
 
 -- types to clean up function signatures
 type MMResult = (Double, GameState)
@@ -46,7 +46,7 @@ seqMM _ g                  = (scoreGame g, g)
 
 parMM :: Minimax
 parMM 0 g                  = (scoreGame g, g)
-parMM d g@(PlayerTurn _)   = fstMax $ seqMMVals parMM d $ nextStates g
+parMM d g@(PlayerTurn _)   = fstMax $ parMMVals parMM seqMM d $ nextStates g
 parMM d g@(ComputerTurn _) = fstMin $ parMMVals parMM seqMM d $ nextStates g
 parMM _ g                  = (scoreGame g, g)
 
