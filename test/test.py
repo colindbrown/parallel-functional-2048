@@ -14,7 +14,7 @@ algorithms = ["simple", "ab", "par +RTS -N -s", "mixed +RTS -N -s"]
 
 def time_successful_call(algorithm, max_depth, suppress_output):
 
-    command = "stack exec pf2048-exe "  + algorithm + " " + str(max_depth)
+    command = "stack exec pf2048-exe " + str(max_depth) + " " + algorithm
     if suppress_output:
         command += " 1>/dev/null"
 

@@ -1,6 +1,5 @@
 module Base2048 (
     GameState(GameWon, GameLost, ComputerTurn, PlayerTurn),
-    Move,
     newGame,
     scoreGame,
     nextStates,

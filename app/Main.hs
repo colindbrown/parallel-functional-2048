@@ -8,7 +8,7 @@ import System.Environment(getArgs, getProgName)
 main :: IO ()
 main = do args <- getArgs
           case args of
-            [playerType, maxdepth] -> playGame $ player (read maxdepth)
+            [maxdepth, playerType] -> playGame $ player (read maxdepth)
               where player = case playerType of
                         "simple" -> simplePlayer
                         "ab" -> alphaBetaPlayer
