@@ -143,7 +143,9 @@ allComputerMoveProbs board = zip probs boards'
         uniqueflatboards' = filter (/= flatboard) flatboards'
         boards' = map (divvy size size) uniqueflatboards'
 
-        probs = cycle $ map (* (lenratio computerChoices uniqueflatboards')) computerProbs
+        probs = cycle $
+                map (* (lenratio computerChoices uniqueflatboards'))
+                computerProbs
 
         deltas = interleave $ map ndeltas computerChoices
         ndeltas n = (n : repeat 0) : (map (0:) $ ndeltas n)
